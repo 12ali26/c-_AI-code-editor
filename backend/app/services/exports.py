@@ -33,17 +33,24 @@ def _create_excel_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
         }
     )
     factors_frame = pd.DataFrame(
-        {
+        run.result.factor_diagnostics
+        or {
             "from_development_period": triangle.development_periods[:-1],
             "to_development_period": triangle.development_periods[1:],
             "age_to_age_factor": run.result.age_to_age_factors,
         }
     )
+    projected_frame = pd.DataFrame(run.result.projected_cumulative_triangle, columns=triangle.development_periods)
+    projected_frame.insert(0, "origin_period", triangle.origin_periods)
+    incremental_frame = pd.DataFrame(run.result.incremental_triangle, columns=triangle.development_periods)
+    incremental_frame.insert(0, "origin_period", triangle.origin_periods)
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         triangle_frame.to_excel(writer, sheet_name="Triangle", index=False)
         factors_frame.to_excel(writer, sheet_name="Factors", index=False)
         result_frame.to_excel(writer, sheet_name="Results", index=False)
+        projected_frame.to_excel(writer, sheet_name="Projected", index=False)
+        incremental_frame.to_excel(writer, sheet_name="Incremental", index=False)
     return str(path)
 
 
@@ -78,4 +85,3 @@ def _create_pdf_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
             y = height - 72
     pdf.save()
     return str(path)
-

@@ -167,10 +167,11 @@ async def create_model_run(
         dataset_id=dataset_id,
         name=payload.assumption_name,
         method=payload.method,
+        selected_factors=payload.selected_factors,
         created_by=principal.user_id,
     )
     try:
-        result = run_chain_ladder(triangle)
+        result = run_chain_ladder(triangle, selected_factors=payload.selected_factors)
     except ReservingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

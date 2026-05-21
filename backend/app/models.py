@@ -104,6 +104,7 @@ class ValidationResult(BaseModel):
 class RunCreate(BaseModel):
     method: str = "chain_ladder"
     assumption_name: str = "Default chain ladder"
+    selected_factors: list[float] | None = None
 
 
 class AssumptionSet(BaseModel):
@@ -121,6 +122,10 @@ class ReservingResult(BaseModel):
     latest_diagonal: list[float]
     age_to_age_factors: list[float]
     cumulative_development_factors: list[float]
+    link_ratio_triangle: list[list[float | None]] = Field(default_factory=list)
+    projected_cumulative_triangle: list[list[float | None]] = Field(default_factory=list)
+    incremental_triangle: list[list[float | None]] = Field(default_factory=list)
+    factor_diagnostics: list[dict[str, Any]] = Field(default_factory=list)
     ultimate_by_origin: list[float]
     ibnr_by_origin: list[float]
     total_latest: float
@@ -196,4 +201,3 @@ class AuditEvent(BaseModel):
     entity_id: str
     details: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=now_utc)
-

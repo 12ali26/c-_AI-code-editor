@@ -39,10 +39,19 @@ async def test_project_upload_run_selection_export_and_audit_flow(client, tmp_pa
     assert validation_response.status_code == 200
     assert validation_response.json()["valid"] is True
 
-    run_response = await client.post(f"/api/v1/datasets/{dataset_id}/runs", json={"method": "chain_ladder"})
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset_id}/runs",
+        json={
+            "method": "chain_ladder",
+            "selected_factors": [1.45, 1.18, 1.08, 1.03],
+            "assumption_name": "Reserve committee selection",
+        },
+    )
     assert run_response.status_code == 200
     run = run_response.json()
     assert run["result"]["total_ibnr"] > 0
+    assert run["result"]["age_to_age_factors"] == [1.45, 1.18, 1.08, 1.03]
+    assert run["result"]["projected_cumulative_triangle"][-1][-1] > 0
 
     selection_response = await client.post(
         f"/api/v1/runs/{run['id']}/selections",
