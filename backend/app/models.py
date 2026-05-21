@@ -100,6 +100,17 @@ class Triangle(BaseModel):
     created_at: datetime = Field(default_factory=now_utc)
 
 
+class TriangleDetail(BaseModel):
+    dataset_id: str
+    triangle_id: str
+    triangle_basis: TriangleBasis
+    origin_periods: list[str]
+    development_periods: list[str]
+    source_values: list[list[float | None]]
+    values: list[list[float | None]]
+    validation_warnings: list[str]
+
+
 class ValidationResult(BaseModel):
     dataset_id: str
     triangle_id: str

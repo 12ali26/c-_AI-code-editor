@@ -57,9 +57,14 @@ pytest
 
 The REST API is served under `/api/v1`.
 
+- `GET /projects`
 - `POST /projects`
+- `GET /projects/{id}`
 - `POST /projects/{id}/datasets`
+- `GET /projects/{id}/datasets`
+- `GET /projects/{id}/runs`
 - `POST /datasets/{id}/validate`
+- `GET /datasets/{id}/triangle`
 - `POST /datasets/{id}/runs`
 - `GET /runs/{id}`
 - `POST /runs/{id}/selections`

@@ -18,6 +18,27 @@ async def client():
         yield test_client
 
 
+async def create_project_dataset_and_run(client, tmp_path, monkeypatch, project_name: str = "Read API Project"):
+    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
+    project_response = await client.post("/api/v1/projects", json={"name": project_name})
+    project = project_response.json()
+
+    sample_path = Path(__file__).parents[1] / "samples" / "sample_triangle.csv"
+    with sample_path.open("rb") as file:
+        upload_response = await client.post(
+            f"/api/v1/projects/{project['id']}/datasets",
+            files={"file": ("sample_triangle.csv", file, "text/csv")},
+        )
+    dataset = upload_response.json()
+
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset['id']}/runs",
+        json={"method": "chain_ladder"},
+    )
+    run = run_response.json()
+    return project, dataset, run
+
+
 @pytest.mark.anyio
 async def test_project_upload_run_selection_export_and_audit_flow(client, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
@@ -69,6 +90,35 @@ async def test_project_upload_run_selection_export_and_audit_flow(client, tmp_pa
 
 
 @pytest.mark.anyio
+async def test_read_endpoints_return_dashboard_foundation(client, tmp_path, monkeypatch) -> None:
+    project, dataset, run = await create_project_dataset_and_run(client, tmp_path, monkeypatch)
+
+    projects_response = await client.get("/api/v1/projects")
+    assert projects_response.status_code == 200
+    assert any(item["id"] == project["id"] for item in projects_response.json())
+
+    project_response = await client.get(f"/api/v1/projects/{project['id']}")
+    assert project_response.status_code == 200
+    assert project_response.json()["id"] == project["id"]
+
+    datasets_response = await client.get(f"/api/v1/projects/{project['id']}/datasets")
+    assert datasets_response.status_code == 200
+    assert [item["id"] for item in datasets_response.json()] == [dataset["id"]]
+
+    runs_response = await client.get(f"/api/v1/projects/{project['id']}/runs")
+    assert runs_response.status_code == 200
+    assert [item["id"] for item in runs_response.json()] == [run["id"]]
+
+    triangle_response = await client.get(f"/api/v1/datasets/{dataset['id']}/triangle")
+    assert triangle_response.status_code == 200
+    triangle = triangle_response.json()
+    assert triangle["dataset_id"] == dataset["id"]
+    assert triangle["triangle_basis"] == "cumulative"
+    assert triangle["source_values"] == triangle["values"]
+    assert triangle["origin_periods"] == ["2020", "2021", "2022", "2023", "2024"]
+
+
+@pytest.mark.anyio
 async def test_incremental_upload_is_normalized_before_model_run(client, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
 
@@ -92,6 +142,12 @@ async def test_incremental_upload_is_normalized_before_model_run(client, tmp_pat
     run = run_response.json()
     assert run["result"]["latest_diagonal"] == [175, 180]
     assert run["result"]["incremental_triangle"][0] == [100, 50, 25]
+
+    triangle_response = await client.get(f"/api/v1/datasets/{dataset['id']}/triangle")
+    assert triangle_response.status_code == 200
+    triangle = triangle_response.json()
+    assert triangle["source_values"] == [[100, 50, 25], [120, 60, None]]
+    assert triangle["values"] == [[100, 150, 175], [120, 180, None]]
 
 
 @pytest.mark.anyio
@@ -232,3 +288,45 @@ async def test_tenant_isolation_blocks_cross_org_access(client) -> None:
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_read_endpoints_enforce_tenant_isolation(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
+    project_response = await client.post(
+        "/api/v1/projects",
+        json={"name": "Tenant Read Project"},
+        headers={"X-Org-Id": "tenant-read-a", "X-User-Id": "alice"},
+    )
+    project_id = project_response.json()["id"]
+
+    sample_path = Path(__file__).parents[1] / "samples" / "sample_triangle.csv"
+    with sample_path.open("rb") as file:
+        upload_response = await client.post(
+            f"/api/v1/projects/{project_id}/datasets",
+            files={"file": ("sample_triangle.csv", file, "text/csv")},
+            headers={"X-Org-Id": "tenant-read-a", "X-User-Id": "alice"},
+        )
+    dataset_id = upload_response.json()["id"]
+
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset_id}/runs",
+        json={"method": "chain_ladder"},
+        headers={"X-Org-Id": "tenant-read-a", "X-User-Id": "alice"},
+    )
+    assert run_response.status_code == 200
+
+    other_headers = {"X-Org-Id": "tenant-read-b", "X-User-Id": "bob"}
+    project_list_response = await client.get("/api/v1/projects", headers=other_headers)
+    assert project_list_response.status_code == 200
+    assert all(item["id"] != project_id for item in project_list_response.json())
+
+    blocked_paths = [
+        f"/api/v1/projects/{project_id}",
+        f"/api/v1/projects/{project_id}/datasets",
+        f"/api/v1/projects/{project_id}/runs",
+        f"/api/v1/datasets/{dataset_id}/triangle",
+    ]
+    for path in blocked_paths:
+        response = await client.get(path, headers=other_headers)
+        assert response.status_code == 404

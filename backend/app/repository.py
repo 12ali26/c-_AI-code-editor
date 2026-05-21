@@ -82,11 +82,26 @@ class InMemoryRepository:
         self.audit_events[event.id] = event
         return event
 
+    def list_projects(self, organization_id: str) -> list[Project]:
+        return sorted(
+            [project for project in self.projects.values() if project.organization_id == organization_id],
+            key=lambda project: project.created_at,
+            reverse=True,
+        )
+
     def get_project(self, project_id: str, organization_id: str) -> Project:
         return self._get_for_org(self.projects, project_id, organization_id)
 
     def get_dataset(self, dataset_id: str, organization_id: str) -> Dataset:
         return self._get_for_org(self.datasets, dataset_id, organization_id)
+
+    def list_project_datasets(self, project_id: str, organization_id: str) -> list[Dataset]:
+        self.get_project(project_id, organization_id)
+        return [
+            self.datasets[dataset_id]
+            for dataset_id in self.project_datasets.get(project_id, [])
+            if self.datasets[dataset_id].organization_id == organization_id
+        ]
 
     def get_triangle_for_dataset(self, dataset_id: str, organization_id: str) -> Triangle:
         triangle_id = self.dataset_triangles.get(dataset_id)
@@ -128,4 +143,3 @@ class InMemoryRepository:
 
 
 repo = InMemoryRepository()
-

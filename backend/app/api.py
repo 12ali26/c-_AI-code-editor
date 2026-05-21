@@ -19,6 +19,7 @@ from app.models import (
     Selection,
     SelectionCreate,
     TriangleBasis,
+    TriangleDetail,
     TriangleValueType,
     ValidationResult,
 )
@@ -72,6 +73,26 @@ async def create_project(
         )
     )
     return project
+
+
+@router.get("/projects", response_model=list[Project])
+async def list_projects(
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> list[Project]:
+    return repository.list_projects(principal.organization_id)
+
+
+@router.get("/projects/{project_id}", response_model=Project)
+async def get_project(
+    project_id: str,
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> Project:
+    try:
+        return repository.get_project(project_id, principal.organization_id)
+    except (NotFoundError, TenantAccessError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/projects/{project_id}/datasets", response_model=Dataset)
@@ -141,6 +162,18 @@ async def upload_dataset(
     return dataset
 
 
+@router.get("/projects/{project_id}/datasets", response_model=list[Dataset])
+async def list_project_datasets(
+    project_id: str,
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> list[Dataset]:
+    try:
+        return repository.list_project_datasets(project_id, principal.organization_id)
+    except (NotFoundError, TenantAccessError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/datasets/{dataset_id}/validate", response_model=ValidationResult)
 async def validate_dataset(
     dataset_id: str,
@@ -152,6 +185,28 @@ async def validate_dataset(
     except (NotFoundError, TenantAccessError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ValidationResult(**validation_summary(triangle))
+
+
+@router.get("/datasets/{dataset_id}/triangle", response_model=TriangleDetail)
+async def get_dataset_triangle(
+    dataset_id: str,
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> TriangleDetail:
+    try:
+        triangle = repository.get_triangle_for_dataset(dataset_id, principal.organization_id)
+    except (NotFoundError, TenantAccessError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return TriangleDetail(
+        dataset_id=dataset_id,
+        triangle_id=triangle.id,
+        triangle_basis=triangle.triangle_basis,
+        origin_periods=triangle.origin_periods,
+        development_periods=triangle.development_periods,
+        source_values=triangle.source_values or triangle.values,
+        values=triangle.values,
+        validation_warnings=triangle.validation_warnings,
+    )
 
 
 @router.post("/datasets/{dataset_id}/runs", response_model=ModelRun)
@@ -232,6 +287,18 @@ async def create_model_run(
         )
     )
     return run
+
+
+@router.get("/projects/{project_id}/runs", response_model=list[ModelRun])
+async def list_project_runs(
+    project_id: str,
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> list[ModelRun]:
+    try:
+        return repository.list_project_runs(project_id, principal.organization_id)
+    except (NotFoundError, TenantAccessError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/runs/{run_id}", response_model=ModelRun)
