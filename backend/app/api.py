@@ -23,7 +23,7 @@ from app.models import (
 )
 from app.repository import InMemoryRepository, NotFoundError, TenantAccessError, repo
 from app.services.exports import create_export
-from app.services.reserving import ReservingError, run_bornhuetter_ferguson, run_chain_ladder
+from app.services.reserving import ReservingError, run_bornhuetter_ferguson, run_cape_cod, run_chain_ladder
 from app.services.triangle import TriangleParseError, parse_triangle_file, validation_summary
 
 router = APIRouter(prefix="/api/v1")
@@ -167,6 +167,8 @@ async def create_model_run(
         selected_factors=payload.selected_factors,
         exposure_values=payload.exposure_values,
         expected_loss_ratio=payload.expected_loss_ratio,
+        trend=payload.trend,
+        decay=payload.decay,
         created_by=principal.user_id,
     )
     try:
@@ -183,8 +185,18 @@ async def create_model_run(
                 expected_loss_ratio=payload.expected_loss_ratio,
                 selected_factors=payload.selected_factors,
             )
+        elif payload.method == "cape_cod":
+            if payload.exposure_values is None:
+                raise ReservingError("Cape Cod requires exposure_values")
+            result = run_cape_cod(
+                triangle,
+                exposure_values=payload.exposure_values,
+                selected_factors=payload.selected_factors,
+                trend=payload.trend,
+                decay=payload.decay,
+            )
         else:
-            raise ReservingError("Supported methods are chain_ladder and bornhuetter_ferguson")
+            raise ReservingError("Supported methods are chain_ladder, bornhuetter_ferguson, and cape_cod")
     except ReservingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

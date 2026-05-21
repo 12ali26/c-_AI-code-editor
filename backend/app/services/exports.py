@@ -74,6 +74,9 @@ def _create_pdf_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
     if "expected_loss_ratio" in run.result.diagnostics:
         pdf.drawString(72, summary_y, f"Expected loss ratio: {run.result.diagnostics['expected_loss_ratio']:.2%}")
         summary_y -= 16
+    if "cape_cod_apriori" in run.result.diagnostics:
+        pdf.drawString(72, summary_y, f"Cape Cod apriori: {run.result.diagnostics['cape_cod_apriori']:.2%}")
+        summary_y -= 16
     pdf.drawString(72, summary_y, f"Total latest: {run.result.total_latest:,.2f}")
     pdf.drawString(72, summary_y - 16, f"Total ultimate: {run.result.total_ultimate:,.2f}")
     pdf.drawString(72, summary_y - 32, f"Total IBNR: {run.result.total_ibnr:,.2f}")

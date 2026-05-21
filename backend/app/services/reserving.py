@@ -142,6 +142,83 @@ def run_bornhuetter_ferguson(
     )
 
 
+def run_cape_cod(
+    triangle: Triangle,
+    exposure_values: list[float],
+    selected_factors: list[float] | None = None,
+    trend: float = 0,
+    decay: float = 1,
+) -> ReservingResult:
+    values = triangle.values
+    if not values or not triangle.development_periods:
+        raise ReservingError("Triangle has no values")
+    _validate_rectangular_triangle(values)
+    _validate_exposure_values(exposure_values, len(triangle.origin_periods))
+    if decay <= 0:
+        raise ReservingError("Decay must be positive")
+
+    indicated_factors = _volume_weighted_age_to_age(values)
+    if selected_factors is not None:
+        _validate_selected_factors(selected_factors, len(triangle.development_periods) - 1)
+    factors = selected_factors or indicated_factors
+
+    cdfs = _cumulative_development_factors(factors)
+    link_ratio_triangle = _link_ratio_triangle(values)
+    projected_cumulative_triangle = _project_cumulative_triangle(values, factors)
+    incremental_triangle = _incremental_triangle(projected_cumulative_triangle)
+    latest = [_latest_observed(row) for row in values]
+    latest_indexes = [_latest_observed_index(row) for row in values]
+    percent_reported = _percent_reported_by_origin(latest_indexes, cdfs)
+    percent_unreported = [round(max(0.0, 1 - reported), 6) for reported in percent_reported]
+    cape_cod_apriori = _cape_cod_apriori(latest, exposure_values, percent_reported)
+    expected_ultimates = [exposure * cape_cod_apriori for exposure in exposure_values]
+
+    ultimates: list[float] = []
+    ibnr: list[float] = []
+    for latest_value, expected_ultimate, unreported in zip(
+        latest,
+        expected_ultimates,
+        percent_unreported,
+        strict=True,
+    ):
+        cape_cod_ibnr = expected_ultimate * unreported
+        ibnr.append(round(cape_cod_ibnr, 2))
+        ultimates.append(round(latest_value + cape_cod_ibnr, 2))
+
+    total_latest = round(sum(latest), 2)
+    total_ultimate = round(sum(ultimates), 2)
+    diagnostics = {
+        "method": "cape_cod",
+        "factor_basis": "selected" if selected_factors is not None else "volume_weighted",
+        "development_periods": triangle.development_periods,
+        "origin_periods": triangle.origin_periods,
+        "latest_observed_development_index": latest_indexes,
+        "exposure_values": [round(value, 2) for value in exposure_values],
+        "cape_cod_apriori": round(cape_cod_apriori, 10),
+        "trend": trend,
+        "decay": decay,
+        "expected_ultimate_by_origin": [round(value, 2) for value in expected_ultimates],
+        "percent_reported_by_origin": percent_reported,
+        "percent_unreported_by_origin": percent_unreported,
+    }
+
+    return ReservingResult(
+        latest_diagonal=[round(value, 2) for value in latest],
+        age_to_age_factors=[round(factor, 6) for factor in factors],
+        cumulative_development_factors=[round(cdf, 6) for cdf in cdfs],
+        link_ratio_triangle=_round_optional_matrix(link_ratio_triangle, 6),
+        projected_cumulative_triangle=_round_optional_matrix(projected_cumulative_triangle, 2),
+        incremental_triangle=_round_optional_matrix(incremental_triangle, 2),
+        factor_diagnostics=_factor_diagnostics(values, indicated_factors, factors),
+        ultimate_by_origin=ultimates,
+        ibnr_by_origin=ibnr,
+        total_latest=total_latest,
+        total_ultimate=total_ultimate,
+        total_ibnr=round(total_ultimate - total_latest, 2),
+        diagnostics=diagnostics,
+    )
+
+
 def _validate_rectangular_triangle(values: list[list[float | None]]) -> None:
     period_count = len(values[0])
     if period_count == 0:
@@ -271,6 +348,28 @@ def _cumulative_development_factors(age_to_age_factors: list[float]) -> list[flo
         running *= age_to_age_factors[index]
         cdfs[index] = running
     return cdfs
+
+
+def _percent_reported_by_origin(latest_indexes: list[int | None], cdfs: list[float]) -> list[float]:
+    reported: list[float] = []
+    for latest_index in latest_indexes:
+        cdf = cdfs[latest_index] if latest_index is not None else 1.0
+        reported.append(round(1 / cdf if cdf > 0 else 1.0, 6))
+    return reported
+
+
+def _cape_cod_apriori(
+    latest_values: list[float],
+    exposure_values: list[float],
+    percent_reported: list[float],
+) -> float:
+    adjusted_exposure = sum(
+        exposure * reported
+        for exposure, reported in zip(exposure_values, percent_reported, strict=True)
+    )
+    if adjusted_exposure <= 0:
+        raise ReservingError("Cape Cod requires positive adjusted exposure")
+    return sum(latest_values) / adjusted_exposure
 
 
 def _latest_observed(row: list[float | None]) -> float:

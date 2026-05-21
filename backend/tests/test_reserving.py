@@ -1,5 +1,5 @@
 from app.models import Triangle
-from app.services.reserving import run_bornhuetter_ferguson, run_chain_ladder
+from app.services.reserving import run_bornhuetter_ferguson, run_cape_cod, run_chain_ladder
 
 
 def sample_triangle() -> Triangle:
@@ -95,3 +95,48 @@ def test_bornhuetter_ferguson_requires_exposure_for_each_origin() -> None:
         assert "Exposure value count" in str(error)
     else:
         raise AssertionError("Expected mismatched exposure values to fail")
+
+
+def test_cape_cod_derives_apriori_from_adjusted_exposure() -> None:
+    exposure_values = [3500, 3700, 3900, 4200, 4500]
+    result = run_cape_cod(
+        sample_triangle(),
+        exposure_values=exposure_values,
+        selected_factors=[1.45, 1.18, 1.08, 1.03],
+    )
+
+    percent_reported = result.diagnostics["percent_reported_by_origin"]
+    expected_apriori = sum(result.latest_diagonal) / sum(
+        exposure * reported
+        for exposure, reported in zip(exposure_values, percent_reported, strict=True)
+    )
+
+    assert result.diagnostics["method"] == "cape_cod"
+    assert result.diagnostics["cape_cod_apriori"] == round(expected_apriori, 10)
+    assert result.diagnostics["expected_ultimate_by_origin"] == [
+        round(exposure * expected_apriori, 2) for exposure in exposure_values
+    ]
+    assert result.ibnr_by_origin == [
+        round(expected_ultimate * unreported, 2)
+        for expected_ultimate, unreported in zip(
+            result.diagnostics["expected_ultimate_by_origin"],
+            result.diagnostics["percent_unreported_by_origin"],
+            strict=True,
+        )
+    ]
+
+
+def test_cape_cod_requires_valid_exposures() -> None:
+    try:
+        run_cape_cod(sample_triangle(), exposure_values=[3500])
+    except ValueError as error:
+        assert "Exposure value count" in str(error)
+    else:
+        raise AssertionError("Expected mismatched exposure values to fail")
+
+    try:
+        run_cape_cod(sample_triangle(), exposure_values=[3500, 3700, -1, 4200, 4500])
+    except ValueError as error:
+        assert "non-negative" in str(error)
+    else:
+        raise AssertionError("Expected negative exposure values to fail")

@@ -14,14 +14,14 @@ The repository is split into:
 - Paid, incurred, reported claim count, and earned premium triangle metadata.
 - Chain ladder calculations with link ratios, age-to-age factors, selected LDFs, projected cumulative triangles, incremental triangles, ultimates, and IBNR.
 - Bornhuetter-Ferguson calculations with exposure/premium inputs, expected loss ratio, expected ultimate, percent reported/unreported, ultimate, and IBNR.
+- Cape Cod calculations with exposure/premium inputs, derived apriori loss ratio, expected ultimate, percent reported/unreported, ultimate, and IBNR.
 - Immutable model runs, assumption/selection records, review notes, audit events, and export jobs.
 - Local in-memory repository for development, with boundaries designed for Postgres/S3 replacement.
 
 ## Engine Roadmap
 
-The engine is intentionally method-adapter friendly. The current implemented methods are chain ladder and Bornhuetter-Ferguson. The next actuarial engine slices should be:
+The engine is intentionally method-adapter friendly. The current implemented methods are chain ladder, Bornhuetter-Ferguson, and Cape Cod. The next actuarial engine slices should be:
 
-- Cape Cod using implied expected loss ratios from the triangle and exposure base.
 - Bootstrap reserve distribution for ranges, percentiles, and risk margins.
 - Explicit cumulative vs incremental import mode.
 

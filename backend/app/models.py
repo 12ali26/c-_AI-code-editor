@@ -107,6 +107,8 @@ class RunCreate(BaseModel):
     selected_factors: list[float] | None = None
     exposure_values: list[float] | None = None
     expected_loss_ratio: float | None = None
+    trend: float = 0
+    decay: float = 1
 
 
 class AssumptionSet(BaseModel):
@@ -118,6 +120,8 @@ class AssumptionSet(BaseModel):
     selected_factors: list[float] | None = None
     exposure_values: list[float] | None = None
     expected_loss_ratio: float | None = None
+    trend: float = 0
+    decay: float = 1
     created_by: str
     created_at: datetime = Field(default_factory=now_utc)
 
