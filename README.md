@@ -11,6 +11,7 @@ The repository is split into:
 
 - P&C reserving only.
 - CSV/XLSX triangle imports.
+- Cumulative and incremental triangle import modes, with incremental uploads normalized to cumulative values for reserving calculations.
 - Paid, incurred, reported claim count, and earned premium triangle metadata.
 - Chain ladder calculations with link ratios, age-to-age factors, selected LDFs, projected cumulative triangles, incremental triangles, ultimates, and IBNR.
 - Bornhuetter-Ferguson calculations with exposure/premium inputs, expected loss ratio, expected ultimate, percent reported/unreported, ultimate, and IBNR.
@@ -23,7 +24,7 @@ The repository is split into:
 The engine is intentionally method-adapter friendly. The current implemented methods are chain ladder, Bornhuetter-Ferguson, and Cape Cod. The next actuarial engine slices should be:
 
 - Bootstrap reserve distribution for ranges, percentiles, and risk margins.
-- Explicit cumulative vs incremental import mode.
+- Persisting normalized/source triangle views in Postgres and exposing both in the UI.
 
 ## Quick Start
 
@@ -69,6 +70,12 @@ Development tenancy is header based:
 
 - `X-Org-Id`: organization id, defaults to `demo-org`
 - `X-User-Id`: user id, defaults to `demo-user`
+
+Dataset upload accepts query parameters:
+
+- `origin_column`, default `origin_period`
+- `value_type`, default `paid`
+- `triangle_basis`, either `cumulative` or `incremental`, default `cumulative`
 
 ## Sample Data
 

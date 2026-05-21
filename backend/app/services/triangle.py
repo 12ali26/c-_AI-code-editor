@@ -4,7 +4,7 @@ from io import BytesIO, StringIO
 
 import pandas as pd
 
-from app.models import Triangle, TriangleValueType
+from app.models import Triangle, TriangleBasis, TriangleValueType
 
 
 class TriangleParseError(ValueError):
@@ -18,6 +18,7 @@ def parse_triangle_file(
     dataset_id: str,
     origin_column: str,
     value_type: TriangleValueType,
+    triangle_basis: TriangleBasis = TriangleBasis.cumulative,
 ) -> tuple[list[str], Triangle]:
     frame = _read_frame(content, filename)
     if origin_column not in frame.columns:
@@ -55,12 +56,16 @@ def parse_triangle_file(
         values.append(row_values)
 
     warnings.extend(_validate_triangle_shape(values))
+    normalized_values = _incremental_to_cumulative(values) if triangle_basis == TriangleBasis.incremental else values
     triangle = Triangle(
         organization_id=organization_id,
         dataset_id=dataset_id,
         origin_periods=origin_periods,
         development_periods=[str(column) for column in development_columns],
-        values=values,
+        values=normalized_values,
+        source_values=values,
+        triangle_basis=triangle_basis,
+        is_cumulative=True,
         validation_warnings=warnings,
     )
     return [str(column) for column in development_columns], triangle
@@ -100,3 +105,17 @@ def _validate_triangle_shape(values: list[list[float | None]]) -> list[str]:
                 break
     return warnings
 
+
+def _incremental_to_cumulative(values: list[list[float | None]]) -> list[list[float | None]]:
+    cumulative_values: list[list[float | None]] = []
+    for row in values:
+        running_total = 0.0
+        cumulative_row: list[float | None] = []
+        for value in row:
+            if value is None:
+                cumulative_row.append(None)
+                continue
+            running_total += value
+            cumulative_row.append(running_total)
+        cumulative_values.append(cumulative_row)
+    return cumulative_values

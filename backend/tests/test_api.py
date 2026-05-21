@@ -69,6 +69,32 @@ async def test_project_upload_run_selection_export_and_audit_flow(client, tmp_pa
 
 
 @pytest.mark.anyio
+async def test_incremental_upload_is_normalized_before_model_run(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
+
+    project_response = await client.post("/api/v1/projects", json={"name": "Incremental Upload"})
+    project_id = project_response.json()["id"]
+    incremental_csv = b"origin_period,12,24,36\n2022,100,50,25\n2023,120,60,\n"
+
+    upload_response = await client.post(
+        f"/api/v1/projects/{project_id}/datasets?triangle_basis=incremental",
+        files={"file": ("incremental_triangle.csv", incremental_csv, "text/csv")},
+    )
+    assert upload_response.status_code == 200
+    dataset = upload_response.json()
+    assert dataset["triangle_basis"] == "incremental"
+
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset['id']}/runs",
+        json={"method": "chain_ladder"},
+    )
+    assert run_response.status_code == 200
+    run = run_response.json()
+    assert run["result"]["latest_diagonal"] == [175, 180]
+    assert run["result"]["incremental_triangle"][0] == [100, 50, 25]
+
+
+@pytest.mark.anyio
 async def test_bornhuetter_ferguson_run_flow(client, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
 

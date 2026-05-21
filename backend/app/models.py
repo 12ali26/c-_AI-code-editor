@@ -23,6 +23,11 @@ class TriangleValueType(StrEnum):
     earned_premium = "earned_premium"
 
 
+class TriangleBasis(StrEnum):
+    cumulative = "cumulative"
+    incremental = "incremental"
+
+
 class RunStatus(StrEnum):
     completed = "completed"
     failed = "failed"
@@ -73,6 +78,7 @@ class Dataset(BaseModel):
     project_id: str
     filename: str
     value_type: TriangleValueType
+    triangle_basis: TriangleBasis = TriangleBasis.cumulative
     origin_column: str
     development_columns: list[str]
     raw_file_path: str
@@ -87,6 +93,8 @@ class Triangle(BaseModel):
     origin_periods: list[str]
     development_periods: list[str]
     values: list[list[float | None]]
+    source_values: list[list[float | None]] = Field(default_factory=list)
+    triangle_basis: TriangleBasis = TriangleBasis.cumulative
     is_cumulative: bool = True
     validation_warnings: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=now_utc)

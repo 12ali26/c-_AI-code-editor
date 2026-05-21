@@ -18,6 +18,7 @@ from app.models import (
     RunStatus,
     Selection,
     SelectionCreate,
+    TriangleBasis,
     TriangleValueType,
     ValidationResult,
 )
@@ -79,6 +80,7 @@ async def upload_dataset(
     file: UploadFile = File(...),
     origin_column: str = "origin_period",
     value_type: TriangleValueType = TriangleValueType.paid,
+    triangle_basis: TriangleBasis = TriangleBasis.cumulative,
     principal: Principal = Depends(get_principal),
     repository: InMemoryRepository = Depends(get_repo),
 ) -> Dataset:
@@ -96,6 +98,7 @@ async def upload_dataset(
         project_id=project_id,
         filename=file.filename or "triangle.csv",
         value_type=value_type,
+        triangle_basis=triangle_basis,
         origin_column=origin_column,
         development_columns=[],
         raw_file_path="",
@@ -113,6 +116,7 @@ async def upload_dataset(
             dataset_id=dataset.id,
             origin_column=origin_column,
             value_type=value_type,
+            triangle_basis=triangle_basis,
         )
     except TriangleParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -127,7 +131,11 @@ async def upload_dataset(
             event_type="dataset.uploaded",
             entity_type="dataset",
             entity_id=dataset.id,
-            details={"filename": dataset.filename, "warnings": triangle.validation_warnings},
+            details={
+                "filename": dataset.filename,
+                "triangle_basis": dataset.triangle_basis,
+                "warnings": triangle.validation_warnings,
+            },
         )
     )
     return dataset

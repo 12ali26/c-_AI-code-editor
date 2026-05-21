@@ -21,6 +21,8 @@ def create_export(run: ModelRun, triangle: Triangle, export_type: ExportType, st
 
 def _create_excel_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
     path = root / f"{run.id}.xlsx"
+    source_frame = pd.DataFrame(triangle.source_values or triangle.values, columns=triangle.development_periods)
+    source_frame.insert(0, "origin_period", triangle.origin_periods)
     triangle_frame = pd.DataFrame(triangle.values, columns=triangle.development_periods)
     triangle_frame.insert(0, "origin_period", triangle.origin_periods)
 
@@ -52,6 +54,7 @@ def _create_excel_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
     incremental_frame.insert(0, "origin_period", triangle.origin_periods)
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        source_frame.to_excel(writer, sheet_name="Source Upload", index=False)
         triangle_frame.to_excel(writer, sheet_name="Triangle", index=False)
         factors_frame.to_excel(writer, sheet_name="Factors", index=False)
         result_frame.to_excel(writer, sheet_name="Results", index=False)
