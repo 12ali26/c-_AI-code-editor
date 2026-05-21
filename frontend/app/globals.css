@@ -23,8 +23,15 @@ body {
 }
 
 button,
-a {
+a,
+input,
+select {
   font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .shell {
@@ -117,6 +124,7 @@ a {
 }
 
 .primaryButton,
+.secondaryButton,
 .exportActions button {
   display: inline-flex;
   align-items: center;
@@ -129,6 +137,39 @@ a {
   color: white;
   padding: 0 14px;
   cursor: pointer;
+}
+
+.secondaryButton {
+  border-color: var(--line);
+  background: #f7faf7;
+  color: var(--brand-strong);
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--brand-strong);
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.alert {
+  border: 1px solid #e6a0a8;
+  border-radius: 8px;
+  background: #fff6f7;
+  color: #8c2438;
+  margin-bottom: 18px;
+  padding: 12px 14px;
 }
 
 .metricGrid {
@@ -224,6 +265,40 @@ th {
   gap: 10px;
 }
 
+.formGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.formGrid + .formGrid {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+input[type="file"] {
+  padding: 8px 10px;
+}
+
 .factorList div {
   display: flex;
   justify-content: space-between;
@@ -270,6 +345,29 @@ th {
   border-color: var(--line);
   background: #f7faf7;
   color: var(--ink);
+}
+
+.mutedText {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.splitTables {
+  display: grid;
+  gap: 18px;
+}
+
+.splitTables strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 900px) {
@@ -319,4 +417,3 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 }
-

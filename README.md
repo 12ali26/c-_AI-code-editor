@@ -85,3 +85,7 @@ Dataset upload accepts query parameters:
 ## Sample Data
 
 `backend/samples/sample_triangle.csv` contains a small cumulative paid triangle suitable for the first chain-ladder run.
+
+`backend/samples/commercial_auto_paid_triangle_2010_2024.csv` contains a larger synthetic commercial auto cumulative paid triangle with accident years 2010-2024 and development periods 12-180 months. The same file is exposed to the frontend sample loader at `/samples/commercial_auto_paid_triangle_2010_2024.csv`.
+
+`backend/samples/commercial_auto_exposures_2010_2024.csv` contains earned premium/exposure values aligned to the larger sample triangle for BF and Cape Cod testing.
