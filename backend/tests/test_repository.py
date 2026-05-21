@@ -81,3 +81,7 @@ def test_database_repository_persists_core_entities_across_sessions(tmp_path) ->
     assert second_repo.get_triangle_for_dataset(dataset.id, "org").values == [[100, 150], [120, None]]
     assert second_repo.get_run(run.id, "org").result.total_ibnr == 60
     assert len(second_repo.list_project_audit_events(project.id, "org")) == 1
+
+    second_repo.delete_project(project.id, "org")
+
+    assert second_repo.list_projects("org") == []

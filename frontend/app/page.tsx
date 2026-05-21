@@ -18,10 +18,13 @@ import {
   Dataset,
   ModelRun,
   Project,
+  SystemStatus,
   TriangleDetail,
   createExport,
   createProject,
   createRun,
+  deleteProject,
+  getSystemStatus,
   getTriangle,
   listProjectAuditEvents,
   listProjectDatasets,
@@ -85,6 +88,7 @@ export default function Home() {
   const [status, setStatus] = useState("Ready");
   const [error, setError] = useState<string | null>(null);
   const [exportPath, setExportPath] = useState<string | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
   const metrics = useMemo(
@@ -115,7 +119,8 @@ export default function Home() {
   useEffect(() => {
     async function load() {
       try {
-        const loadedProjects = await listProjects();
+        const [loadedProjects, loadedStatus] = await Promise.all([listProjects(), getSystemStatus()]);
+        setSystemStatus(loadedStatus);
         setProjects(loadedProjects);
         const firstProject = loadedProjects[0] ?? null;
         setActiveProject(firstProject);
@@ -205,6 +210,37 @@ export default function Home() {
       await refreshProject(project);
     } catch (sampleError) {
       setError(sampleError instanceof Error ? sampleError.message : "Could not load sample triangle");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteActiveProject() {
+    if (!activeProject) {
+      setError("Select a project before deleting.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteProject(activeProject.id);
+      const loadedProjects = await listProjects();
+      setProjects(loadedProjects);
+      const nextProject = loadedProjects[0] ?? null;
+      setActiveProject(nextProject);
+      setStatus("Project deleted");
+      if (nextProject) {
+        await refreshProject(nextProject);
+      } else {
+        setDatasets([]);
+        setRuns([]);
+        setAuditEvents([]);
+        setActiveDataset(null);
+        setActiveRun(null);
+        setTriangle(null);
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Could not delete project");
     } finally {
       setBusy(false);
     }
@@ -301,6 +337,21 @@ export default function Home() {
             {status}
           </div>
         </header>
+
+        <section className="utilityBar">
+          <span>
+            Database: {systemStatus?.database_backend ?? "checking"}{" "}
+            {systemStatus?.database_url ? `(${systemStatus.database_url})` : ""}
+          </span>
+          <button
+            className="secondaryButton compactButton"
+            disabled={busy || !activeProject}
+            onClick={() => void handleDeleteActiveProject()}
+            type="button"
+          >
+            Delete active project
+          </button>
+        </section>
 
         {error && <div className="alert">{error}</div>}
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Callable, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db_models import (
@@ -158,6 +158,37 @@ class InMemoryRepository:
             reverse=True,
         )
 
+    def delete_project(self, project_id: str, organization_id: str) -> None:
+        self.get_project(project_id, organization_id)
+        dataset_ids = list(self.project_datasets.get(project_id, []))
+        run_ids = [
+            run_id
+            for run_id, run in self.model_runs.items()
+            if run.project_id == project_id and run.organization_id == organization_id
+        ]
+        for run_id in run_ids:
+            self.model_runs.pop(run_id, None)
+            self.run_selections.pop(run_id, None)
+        for selection_id, selection in list(self.selections.items()):
+            if selection.run_id in run_ids and selection.organization_id == organization_id:
+                self.selections.pop(selection_id, None)
+        for export_id, export in list(self.exports.items()):
+            if export.run_id in run_ids and export.organization_id == organization_id:
+                self.exports.pop(export_id, None)
+        for dataset_id in dataset_ids:
+            self.datasets.pop(dataset_id, None)
+            triangle_id = self.dataset_triangles.pop(dataset_id, None)
+            if triangle_id:
+                self.triangles.pop(triangle_id, None)
+        for assumption_id, assumption in list(self.assumption_sets.items()):
+            if assumption.dataset_id in dataset_ids and assumption.organization_id == organization_id:
+                self.assumption_sets.pop(assumption_id, None)
+        for event_id, event in list(self.audit_events.items()):
+            if event.project_id == project_id and event.organization_id == organization_id:
+                self.audit_events.pop(event_id, None)
+        self.project_datasets.pop(project_id, None)
+        self.projects.pop(project_id, None)
+
     def _get_for_org(self, store: dict[str, T], entity_id: str, organization_id: str) -> T:
         entity = store.get(entity_id)
         if entity is None:
@@ -293,6 +324,44 @@ class DatabaseRepository:
                 .order_by(AuditEventRow.created_at.desc())
             ).all()
             return [_row_to_audit(row) for row in rows]
+
+    def delete_project(self, project_id: str, organization_id: str) -> None:
+        with self.session_factory() as session:
+            self._get_for_org(session, ProjectRow, project_id, organization_id)
+            dataset_ids = session.scalars(
+                select(DatasetRow.id).where(
+                    DatasetRow.project_id == project_id,
+                    DatasetRow.organization_id == organization_id,
+                )
+            ).all()
+            run_ids = session.scalars(
+                select(ModelRunRow.id).where(
+                    ModelRunRow.project_id == project_id,
+                    ModelRunRow.organization_id == organization_id,
+                )
+            ).all()
+
+            if run_ids:
+                session.execute(delete(SelectionRow).where(SelectionRow.run_id.in_(run_ids)))
+                session.execute(delete(ExportJobRow).where(ExportJobRow.run_id.in_(run_ids)))
+                session.execute(delete(ModelRunRow).where(ModelRunRow.id.in_(run_ids)))
+            if dataset_ids:
+                session.execute(delete(AssumptionSetRow).where(AssumptionSetRow.dataset_id.in_(dataset_ids)))
+                session.execute(delete(TriangleRow).where(TriangleRow.dataset_id.in_(dataset_ids)))
+                session.execute(delete(DatasetRow).where(DatasetRow.id.in_(dataset_ids)))
+            session.execute(
+                delete(AuditEventRow).where(
+                    AuditEventRow.project_id == project_id,
+                    AuditEventRow.organization_id == organization_id,
+                )
+            )
+            session.execute(
+                delete(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.organization_id == organization_id,
+                )
+            )
+            session.commit()
 
     def _get_for_org(self, session: Session, row_type: type[T], entity_id: str, organization_id: str) -> T:
         row = session.get(row_type, entity_id)

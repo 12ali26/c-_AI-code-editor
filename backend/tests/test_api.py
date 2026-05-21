@@ -134,6 +134,28 @@ async def test_read_endpoints_return_dashboard_foundation(client, tmp_path, monk
 
 
 @pytest.mark.anyio
+async def test_system_status_reports_database_backend(client) -> None:
+    response = await client.get("/api/v1/system/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["database_backend"] == "sqlite"
+    assert body["persistence"] == "database"
+
+
+@pytest.mark.anyio
+async def test_delete_project_removes_project_graph(client, tmp_path, monkeypatch) -> None:
+    project, dataset, run = await create_project_dataset_and_run(client, tmp_path, monkeypatch, "Delete me")
+
+    delete_response = await client.delete(f"/api/v1/projects/{project['id']}")
+    assert delete_response.status_code == 204
+
+    assert (await client.get(f"/api/v1/projects/{project['id']}")).status_code == 404
+    assert (await client.get(f"/api/v1/datasets/{dataset['id']}/triangle")).status_code == 404
+    assert (await client.get(f"/api/v1/runs/{run['id']}")).status_code == 404
+
+
+@pytest.mark.anyio
 async def test_incremental_upload_is_normalized_before_model_run(client, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
 

@@ -71,6 +71,12 @@ export type ExportJob = {
   status: string;
 };
 
+export type SystemStatus = {
+  database_backend: string;
+  database_url: string;
+  persistence: string;
+};
+
 export type RunPayload = {
   method: string;
   assumption_name?: string;
@@ -108,10 +114,20 @@ export function listProjects() {
   return request<Project[]>("/projects");
 }
 
+export function getSystemStatus() {
+  return request<SystemStatus>("/system/status");
+}
+
 export function createProject(name: string) {
   return request<Project>("/projects", {
     method: "POST",
     body: JSON.stringify({ name })
+  });
+}
+
+export async function deleteProject(projectId: string) {
+  await request<void>(`/projects/${projectId}`, {
+    method: "DELETE"
   });
 }
 

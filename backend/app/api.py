@@ -18,11 +18,13 @@ from app.models import (
     RunStatus,
     Selection,
     SelectionCreate,
+    SystemStatus,
     TriangleBasis,
     TriangleDetail,
     TriangleValueType,
     ValidationResult,
 )
+from app.database import get_database_url
 from app.repository import InMemoryRepository, NotFoundError, TenantAccessError, repo
 from app.services.exports import create_export
 from app.services.reserving import ReservingError, run_bornhuetter_ferguson, run_cape_cod, run_chain_ladder
@@ -48,6 +50,23 @@ async def get_principal(
 ) -> Principal:
     repository.ensure_principal(x_org_id, x_user_id)
     return Principal(organization_id=x_org_id, user_id=x_user_id)
+
+
+def _masked_database_url() -> str:
+    url = get_database_url()
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    if "@" not in rest:
+        return url
+    return f"{scheme}://***@{rest.split('@', 1)[1]}"
+
+
+@router.get("/system/status", response_model=SystemStatus)
+async def get_system_status() -> SystemStatus:
+    url = get_database_url()
+    backend = "postgres" if url.startswith("postgresql") else "sqlite" if url.startswith("sqlite") else "other"
+    return SystemStatus(database_backend=backend, database_url=_masked_database_url())
 
 
 @router.post("/projects", response_model=Project)
@@ -91,6 +110,18 @@ async def get_project(
 ) -> Project:
     try:
         return repository.get_project(project_id, principal.organization_id)
+    except (NotFoundError, TenantAccessError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/projects/{project_id}", status_code=204)
+async def delete_project(
+    project_id: str,
+    principal: Principal = Depends(get_principal),
+    repository: InMemoryRepository = Depends(get_repo),
+) -> None:
+    try:
+        repository.delete_project(project_id, principal.organization_id)
     except (NotFoundError, TenantAccessError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

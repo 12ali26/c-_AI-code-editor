@@ -72,6 +72,12 @@ class Project(ProjectCreate):
     created_at: datetime = Field(default_factory=now_utc)
 
 
+class SystemStatus(BaseModel):
+    database_backend: str
+    database_url: str
+    persistence: str = "database"
+
+
 class Dataset(BaseModel):
     id: str = Field(default_factory=lambda: new_id("data"))
     organization_id: str
