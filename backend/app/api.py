@@ -234,6 +234,7 @@ async def create_model_run(
         decay=payload.decay,
         created_by=principal.user_id,
     )
+    repository.add_assumption(assumption)
     try:
         if payload.method == "chain_ladder":
             result = run_chain_ladder(triangle, selected_factors=payload.selected_factors)

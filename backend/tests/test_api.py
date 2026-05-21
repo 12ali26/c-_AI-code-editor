@@ -2,8 +2,12 @@ from pathlib import Path
 
 import httpx
 import pytest
+from sqlalchemy.orm import sessionmaker
 
+from app.api import get_repo
+from app.database import create_app_engine, init_db
 from app.main import app
+from app.repository import DatabaseRepository
 
 
 @pytest.fixture
@@ -13,9 +17,20 @@ def anyio_backend():
 
 @pytest.fixture
 async def client():
+    engine = create_app_engine("sqlite:///:memory:")
+    init_db(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    test_repository = DatabaseRepository(session_factory)
+
+    async def override_get_repo():
+        return test_repository
+
+    app.dependency_overrides[get_repo] = override_get_repo
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as test_client:
         yield test_client
+    app.dependency_overrides.clear()
+    engine.dispose()
 
 
 async def create_project_dataset_and_run(client, tmp_path, monkeypatch, project_name: str = "Read API Project"):

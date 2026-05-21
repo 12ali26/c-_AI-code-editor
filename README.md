@@ -38,6 +38,21 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
+The backend defaults to SQLite at `backend/storage/reserving.db`. To use the Postgres service in `docker-compose.yml`, set:
+
+```bash
+export DATABASE_URL=postgresql+psycopg://reserving:reserving@localhost:5432/reserving
+```
+
+Database schema:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+For local convenience the app also creates missing tables on startup.
+
 Frontend:
 
 ```bash
