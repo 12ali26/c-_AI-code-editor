@@ -23,7 +23,7 @@ from app.models import (
 )
 from app.repository import InMemoryRepository, NotFoundError, TenantAccessError, repo
 from app.services.exports import create_export
-from app.services.reserving import ReservingError, run_chain_ladder
+from app.services.reserving import ReservingError, run_bornhuetter_ferguson, run_chain_ladder
 from app.services.triangle import TriangleParseError, parse_triangle_file, validation_summary
 
 router = APIRouter(prefix="/api/v1")
@@ -159,19 +159,32 @@ async def create_model_run(
     except (NotFoundError, TenantAccessError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if payload.method != "chain_ladder":
-        raise HTTPException(status_code=400, detail="V1 supports only the chain_ladder method")
-
     assumption = AssumptionSet(
         organization_id=principal.organization_id,
         dataset_id=dataset_id,
         name=payload.assumption_name,
         method=payload.method,
         selected_factors=payload.selected_factors,
+        exposure_values=payload.exposure_values,
+        expected_loss_ratio=payload.expected_loss_ratio,
         created_by=principal.user_id,
     )
     try:
-        result = run_chain_ladder(triangle, selected_factors=payload.selected_factors)
+        if payload.method == "chain_ladder":
+            result = run_chain_ladder(triangle, selected_factors=payload.selected_factors)
+        elif payload.method == "bornhuetter_ferguson":
+            if payload.exposure_values is None or payload.expected_loss_ratio is None:
+                raise ReservingError(
+                    "Bornhuetter-Ferguson requires exposure_values and expected_loss_ratio"
+                )
+            result = run_bornhuetter_ferguson(
+                triangle,
+                exposure_values=payload.exposure_values,
+                expected_loss_ratio=payload.expected_loss_ratio,
+                selected_factors=payload.selected_factors,
+            )
+        else:
+            raise ReservingError("Supported methods are chain_ladder and bornhuetter_ferguson")
     except ReservingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

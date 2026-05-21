@@ -69,6 +69,63 @@ async def test_project_upload_run_selection_export_and_audit_flow(client, tmp_pa
 
 
 @pytest.mark.anyio
+async def test_bornhuetter_ferguson_run_flow(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
+
+    project_response = await client.post("/api/v1/projects", json={"name": "BF Reserving"})
+    project_id = project_response.json()["id"]
+
+    sample_path = Path(__file__).parents[1] / "samples" / "sample_triangle.csv"
+    with sample_path.open("rb") as file:
+        upload_response = await client.post(
+            f"/api/v1/projects/{project_id}/datasets",
+            files={"file": ("sample_triangle.csv", file, "text/csv")},
+        )
+    dataset_id = upload_response.json()["id"]
+
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset_id}/runs",
+        json={
+            "method": "bornhuetter_ferguson",
+            "assumption_name": "BF with selected ELR",
+            "selected_factors": [1.45, 1.18, 1.08, 1.03],
+            "exposure_values": [3500, 3700, 3900, 4200, 4500],
+            "expected_loss_ratio": 0.72,
+        },
+    )
+
+    assert run_response.status_code == 200
+    run = run_response.json()
+    assert run["method"] == "bornhuetter_ferguson"
+    assert run["result"]["diagnostics"]["expected_loss_ratio"] == 0.72
+    assert run["result"]["diagnostics"]["expected_ultimate_by_origin"] == [2520, 2664, 2808, 3024, 3240]
+
+
+@pytest.mark.anyio
+async def test_bornhuetter_ferguson_requires_assumptions(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path))
+
+    project_response = await client.post("/api/v1/projects", json={"name": "BF Missing Inputs"})
+    project_id = project_response.json()["id"]
+
+    sample_path = Path(__file__).parents[1] / "samples" / "sample_triangle.csv"
+    with sample_path.open("rb") as file:
+        upload_response = await client.post(
+            f"/api/v1/projects/{project_id}/datasets",
+            files={"file": ("sample_triangle.csv", file, "text/csv")},
+        )
+    dataset_id = upload_response.json()["id"]
+
+    run_response = await client.post(
+        f"/api/v1/datasets/{dataset_id}/runs",
+        json={"method": "bornhuetter_ferguson"},
+    )
+
+    assert run_response.status_code == 400
+    assert "requires exposure_values" in run_response.json()["detail"]
+
+
+@pytest.mark.anyio
 async def test_tenant_isolation_blocks_cross_org_access(client) -> None:
     project_response = await client.post(
         "/api/v1/projects",

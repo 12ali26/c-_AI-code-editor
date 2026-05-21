@@ -1,9 +1,9 @@
 from app.models import Triangle
-from app.services.reserving import run_chain_ladder
+from app.services.reserving import run_bornhuetter_ferguson, run_chain_ladder
 
 
-def test_chain_ladder_calculates_ibnr_from_sample_triangle() -> None:
-    triangle = Triangle(
+def sample_triangle() -> Triangle:
+    return Triangle(
         organization_id="org",
         dataset_id="data",
         origin_periods=["2020", "2021", "2022", "2023", "2024"],
@@ -16,6 +16,10 @@ def test_chain_ladder_calculates_ibnr_from_sample_triangle() -> None:
             [1620, None, None, None, None],
         ],
     )
+
+
+def test_chain_ladder_calculates_ibnr_from_sample_triangle() -> None:
+    triangle = sample_triangle()
 
     result = run_chain_ladder(triangle)
 
@@ -61,3 +65,33 @@ def test_chain_ladder_rejects_invalid_factor_overrides() -> None:
         assert "positive" in str(error)
     else:
         raise AssertionError("Expected invalid factor override to fail")
+
+
+def test_bornhuetter_ferguson_uses_expected_loss_and_unreported_percentage() -> None:
+    result = run_bornhuetter_ferguson(
+        sample_triangle(),
+        exposure_values=[3500, 3700, 3900, 4200, 4500],
+        expected_loss_ratio=0.72,
+        selected_factors=[1.45, 1.18, 1.08, 1.03],
+    )
+
+    assert result.diagnostics["method"] == "bornhuetter_ferguson"
+    assert result.age_to_age_factors == [1.45, 1.18, 1.08, 1.03]
+    assert result.diagnostics["expected_ultimate_by_origin"] == [2520, 2664, 2808, 3024, 3240]
+    assert result.diagnostics["percent_unreported_by_origin"][0] == 0
+    assert result.ibnr_by_origin[0] == 0
+    assert result.ultimate_by_origin[-1] > result.latest_diagonal[-1]
+    assert result.total_ibnr == round(sum(result.ibnr_by_origin), 2)
+
+
+def test_bornhuetter_ferguson_requires_exposure_for_each_origin() -> None:
+    try:
+        run_bornhuetter_ferguson(
+            sample_triangle(),
+            exposure_values=[3500],
+            expected_loss_ratio=0.72,
+        )
+    except ValueError as error:
+        assert "Exposure value count" in str(error)
+    else:
+        raise AssertionError("Expected mismatched exposure values to fail")

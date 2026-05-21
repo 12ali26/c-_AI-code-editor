@@ -105,6 +105,8 @@ class RunCreate(BaseModel):
     method: str = "chain_ladder"
     assumption_name: str = "Default chain ladder"
     selected_factors: list[float] | None = None
+    exposure_values: list[float] | None = None
+    expected_loss_ratio: float | None = None
 
 
 class AssumptionSet(BaseModel):
@@ -114,6 +116,8 @@ class AssumptionSet(BaseModel):
     name: str
     method: str
     selected_factors: list[float] | None = None
+    exposure_values: list[float] | None = None
+    expected_loss_ratio: float | None = None
     created_by: str
     created_at: datetime = Field(default_factory=now_utc)
 

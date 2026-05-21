@@ -63,6 +63,85 @@ def run_chain_ladder(triangle: Triangle, selected_factors: list[float] | None = 
     )
 
 
+def run_bornhuetter_ferguson(
+    triangle: Triangle,
+    exposure_values: list[float],
+    expected_loss_ratio: float,
+    selected_factors: list[float] | None = None,
+) -> ReservingResult:
+    values = triangle.values
+    if not values or not triangle.development_periods:
+        raise ReservingError("Triangle has no values")
+    _validate_rectangular_triangle(values)
+    _validate_exposure_values(exposure_values, len(triangle.origin_periods))
+    if expected_loss_ratio < 0:
+        raise ReservingError("Expected loss ratio must be non-negative")
+
+    indicated_factors = _volume_weighted_age_to_age(values)
+    if selected_factors is not None:
+        _validate_selected_factors(selected_factors, len(triangle.development_periods) - 1)
+    factors = selected_factors or indicated_factors
+
+    cdfs = _cumulative_development_factors(factors)
+    link_ratio_triangle = _link_ratio_triangle(values)
+    projected_cumulative_triangle = _project_cumulative_triangle(values, factors)
+    incremental_triangle = _incremental_triangle(projected_cumulative_triangle)
+    latest = [_latest_observed(row) for row in values]
+    latest_indexes = [_latest_observed_index(row) for row in values]
+    expected_ultimates = [exposure * expected_loss_ratio for exposure in exposure_values]
+
+    ultimates: list[float] = []
+    ibnr: list[float] = []
+    percent_reported: list[float] = []
+    percent_unreported: list[float] = []
+
+    for latest_value, latest_index, expected_ultimate in zip(
+        latest,
+        latest_indexes,
+        expected_ultimates,
+        strict=True,
+    ):
+        cdf = cdfs[latest_index] if latest_index is not None else 1.0
+        reported = 1 / cdf if cdf > 0 else 1.0
+        unreported = max(0.0, 1 - reported)
+        bf_ibnr = expected_ultimate * unreported
+        ibnr.append(round(bf_ibnr, 2))
+        ultimates.append(round(latest_value + bf_ibnr, 2))
+        percent_reported.append(round(reported, 6))
+        percent_unreported.append(round(unreported, 6))
+
+    total_latest = round(sum(latest), 2)
+    total_ultimate = round(sum(ultimates), 2)
+    diagnostics = {
+        "method": "bornhuetter_ferguson",
+        "factor_basis": "selected" if selected_factors is not None else "volume_weighted",
+        "development_periods": triangle.development_periods,
+        "origin_periods": triangle.origin_periods,
+        "latest_observed_development_index": latest_indexes,
+        "exposure_values": [round(value, 2) for value in exposure_values],
+        "expected_loss_ratio": expected_loss_ratio,
+        "expected_ultimate_by_origin": [round(value, 2) for value in expected_ultimates],
+        "percent_reported_by_origin": percent_reported,
+        "percent_unreported_by_origin": percent_unreported,
+    }
+
+    return ReservingResult(
+        latest_diagonal=[round(value, 2) for value in latest],
+        age_to_age_factors=[round(factor, 6) for factor in factors],
+        cumulative_development_factors=[round(cdf, 6) for cdf in cdfs],
+        link_ratio_triangle=_round_optional_matrix(link_ratio_triangle, 6),
+        projected_cumulative_triangle=_round_optional_matrix(projected_cumulative_triangle, 2),
+        incremental_triangle=_round_optional_matrix(incremental_triangle, 2),
+        factor_diagnostics=_factor_diagnostics(values, indicated_factors, factors),
+        ultimate_by_origin=ultimates,
+        ibnr_by_origin=ibnr,
+        total_latest=total_latest,
+        total_ultimate=total_ultimate,
+        total_ibnr=round(total_ultimate - total_latest, 2),
+        diagnostics=diagnostics,
+    )
+
+
 def _validate_rectangular_triangle(values: list[list[float | None]]) -> None:
     period_count = len(values[0])
     if period_count == 0:
@@ -77,6 +156,13 @@ def _validate_selected_factors(selected_factors: list[float], expected_count: in
     invalid = [factor for factor in selected_factors if factor <= 0]
     if invalid:
         raise ReservingError("Selected factors must be positive")
+
+
+def _validate_exposure_values(exposure_values: list[float], expected_count: int) -> None:
+    if len(exposure_values) != expected_count:
+        raise ReservingError("Exposure value count must equal origin period count")
+    if any(value < 0 for value in exposure_values):
+        raise ReservingError("Exposure values must be non-negative")
 
 
 def _volume_weighted_age_to_age(values: list[list[float | None]]) -> list[float]:

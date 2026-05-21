@@ -32,6 +32,12 @@ def _create_excel_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
             "ibnr": run.result.ibnr_by_origin,
         }
     )
+    if "expected_ultimate_by_origin" in run.result.diagnostics:
+        result_frame["expected_ultimate"] = run.result.diagnostics["expected_ultimate_by_origin"]
+    if "percent_reported_by_origin" in run.result.diagnostics:
+        result_frame["percent_reported"] = run.result.diagnostics["percent_reported_by_origin"]
+    if "percent_unreported_by_origin" in run.result.diagnostics:
+        result_frame["percent_unreported"] = run.result.diagnostics["percent_unreported_by_origin"]
     factors_frame = pd.DataFrame(
         run.result.factor_diagnostics
         or {
@@ -64,9 +70,13 @@ def _create_pdf_export(run: ModelRun, triangle: Triangle, root: Path) -> str:
     pdf.drawString(72, height - 96, f"Run ID: {run.id}")
     pdf.drawString(72, height - 112, f"Method: {run.method}")
     pdf.drawString(72, height - 128, f"Origins: {len(triangle.origin_periods)}")
-    pdf.drawString(72, height - 152, f"Total latest: {run.result.total_latest:,.2f}")
-    pdf.drawString(72, height - 168, f"Total ultimate: {run.result.total_ultimate:,.2f}")
-    pdf.drawString(72, height - 184, f"Total IBNR: {run.result.total_ibnr:,.2f}")
+    summary_y = height - 152
+    if "expected_loss_ratio" in run.result.diagnostics:
+        pdf.drawString(72, summary_y, f"Expected loss ratio: {run.result.diagnostics['expected_loss_ratio']:.2%}")
+        summary_y -= 16
+    pdf.drawString(72, summary_y, f"Total latest: {run.result.total_latest:,.2f}")
+    pdf.drawString(72, summary_y - 16, f"Total ultimate: {run.result.total_ultimate:,.2f}")
+    pdf.drawString(72, summary_y - 32, f"Total IBNR: {run.result.total_ibnr:,.2f}")
     pdf.setFont("Helvetica-Bold", 12)
     pdf.drawString(72, height - 220, "Origin Period Results")
     pdf.setFont("Helvetica", 9)
